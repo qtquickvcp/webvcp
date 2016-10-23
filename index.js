@@ -1,8 +1,15 @@
 const http = require('http');
 const express = require('express');
 const path = require('path');
+const args = require('commander');
 const sd = require('./src/express-sd');
 const SocketManager = require('./src/socketmanager.js');
+
+// parse arguments
+args
+  .version('0.1')
+  .option('-a, --application [string]', 'Application to serve via WebVCP', path.join(__dirname, 'qml/app3'))
+  .parse(process.argv);
 
 let app = express();
 let server = http.createServer(app);
@@ -12,12 +19,11 @@ let server = http.createServer(app);
 app.use('/lib', express.static(path.resolve('../qmlweb/lib')));
 app.use('/locallib', express.static(path.join(__dirname, 'lib')));
 // serve qml files
-app.use('/qml', express.static(path.join(__dirname, 'qml')));
+app.use('/qml', express.static(args.application));
 // serve module
 app.use('/modules', express.static(path.join(__dirname, 'modules')));
 
 // serve main HTML file
-const qmlApp= 'qml/app3/main.qml';
 const data = `
 <!DOCTYPE html>
 <html>
@@ -29,7 +35,7 @@ const data = `
     <script type="text/javascript" src="locallib/microevent.js"></script>
     <script type="text/javascript" src="lib/qt.js"></script>
   </head>
-  <body style="margin: 0;" data-qml="${qmlApp}">
+  <body style="margin: 0;" data-qml="qml/main.qml">
   </body>
 </html>
 `;

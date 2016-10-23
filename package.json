@@ -6,7 +6,6 @@
   "scripts": {
     "build": "gulp build",
     "watch": "gulp watch",
-    "app": "node index.js",
     "test": "mocha tests/test.js"
   },
   "author": "",
@@ -14,6 +13,7 @@
   "dependencies": {
     "avahi-dbus": "^0.1.0",
     "chai": "^3.5.0",
+    "commander": "^2.9.0",
     "express": "^4.14.0",
     "gulp": "^3.9.1",
     "gulp-babel": "^6.1.2",
