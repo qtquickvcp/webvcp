@@ -1,7 +1,11 @@
 {
-  "name": "qmlweb-test",
+  "name": "webvcp",
   "version": "1.0.0",
-  "description": "",
+  "description": "Web Virtual Control Panel for Machinekit",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/machinekoder/webvcp.git"
+  },
   "main": ".#index.js",
   "scripts": {
     "build": "gulp build",
@@ -19,6 +23,7 @@
     "gulp-babel": "^6.1.2",
     "gulp-concat": "^2.6.0",
     "gulp-qmlweb": "0.0.7",
+    "machinetalk-protobuf": "^1.0.1",
     "mocha": "^3.1.2",
     "request": "^2.75.0",
     "socket.io": "^1.5.0",
