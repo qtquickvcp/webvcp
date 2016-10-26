@@ -8,39 +8,39 @@ const protobufMessage = require('machinetalk-protobuf').message;
 const Container = protobufMessage.Container;
 const ContainerType = protobufMessage.ContainerType;
 
-function ZmqConnection(uri, type, uuid) {
+class ZmqConnection extends EventEmitter {
+  constructor(uri, type, uuid) {
+    super();
     this.uri = uri;
     this.type = type;
     this.socket = zmq.socket(type);
     this.timeout = 2000;
 
     this.socket.connect(this.uri);
-    this.socket.on('message', this.emit.bind(this, 'message'));
-    //this.socket.on('message', this.refreshTimeout.bind(this));
+    this.socket.on("message", this.emit.bind(this, "message"));
+    //this.socket.on("message", this.refreshTimeout.bind(this));
 
-    this.timer = undefined;
+    this.timer = null;
     //this.refreshTimeout();
-    // function (msg) {
-    //     this.emit('message', msg);
-    //     //console.log('test', msg.toString());
-    // });
-}
-util.inherits(ZmqConnection, EventEmitter);
+  }
 
-// refresh a timeout
-ZmqConnection.prototype.refreshTimeout = function() {
+  // refresh a timeout
+  refreshTimeout() {
     clearTimeout(this.timer);
     this.timer = setTimeout(this.close.bind(this), this.timeout);
-};
+  }
 
-ZmqConnection.prototype.close = function() {
+  close() {
     clearTimeout(this.timer);
     this.socket.close();
-    this.emit('closed', this);
+    this.emit("closed", this);
     delete this;
-};
+  }
+}
 
-function ZmqBroker(uri, type, ipcDir) {
+class ZmqBroker extends EventEmitter {
+  constructor(uri, type, ipcDir) {
+    super();
     let transport = (type === "dealer" ? "inproc://" : `ipc://${ipcDir}/`);
     let frontendType = (type === "sub" ? "xsub" : type);
     let backendType = (type === "dealer" ? "router" : "xpub");
@@ -53,151 +53,154 @@ function ZmqBroker(uri, type, ipcDir) {
 
     this.frontend.connect(this.uri);
     if (backendType === "xpub") {
-        this.backend.setsockopt(zmq.ZMQ_XPUB_VERBOSE, 1); // enables subscriptions for all subscribers
+      // enables subscriptions for all subscribers
+      this.backend.setsockopt(zmq.ZMQ_XPUB_VERBOSE, 1);
     }
     this.backend.bindSync(this.backendUri);
     this.createBroker(this.frontend, this.backend);
-}
-util.inherits(ZmqBroker, EventEmitter);
+  }
 
-ZmqBroker.prototype.createConnection = function () {
+  createConnection() {
     let connection = new ZmqConnection(this.backendUri, this.type);
-    connection.on('closed', this.connectionClosed.bind(this));
+    connection.on("closed", this.connectionClosed.bind(this));
     this.connections.add(connection);
     return connection;
-};
+  }
 
-ZmqBroker.prototype.connectionClosed = function(connection) {
+  connectionClosed(connection) {
     this.connections.delete(connection);
     if (this.connections.size === 0) {
-        this.close();
+      this.close();
     }
-};
+  }
 
-ZmqBroker.prototype.createBroker =  function(frontend, backend) {
-    frontend.on('message', function() {
-        // Note that separate message parts come as function arguments.
-        let args = Array.apply(null, arguments);
-        // Pass array of strings/buffers to send multipart messages.
-        backend.send(args);
+  createBroker(frontend, backend) {
+    frontend.on("message", function() {
+      // Note that separate message parts come as function arguments.
+      let args = Array.apply(null, arguments);
+      // Pass array of strings/buffers to send multipart messages.
+      backend.send(args);
     });
 
-    backend.on('message', function() {
-        let args = Array.apply(null, arguments);
-        frontend.send(args);
+    backend.on("message", function() {
+      let args = Array.apply(null, arguments);
+      frontend.send(args);
     });
-};
+  }
 
-ZmqBroker.prototype.close = function() {
+  close() {
     this.backend.close();
     this.frontend.close();
-    this.emit('closed', this.type, this.uri);
-};
+    this.emit("closed", this.type, this.uri);
+  }
+}
 
-function SocketManager(server) {
+class SocketManager extends EventEmitter {
+  constructor(server) {
+    super();
     this.brokers = {sub: {}, dealer: {}}; // map of brokers
     this.io = io.listen(server);
     this.connections = {};
     this.ipcDir = tmp.dirSync().name;
 
-    this.io.on('connection', this._handleConnection.bind(this));
-}
-util.inherits(SocketManager, EventEmitter);
+    this.io.on("connection", this._handleConnection.bind(this));
+  }
 
-SocketManager.prototype._handleConnection = function(socket) {
-    socket.on('message', this.websocketMsgReceived.bind(this, socket));
-};
+  _handleConnection(socket) {
+    socket.on("message", this.websocketMsgReceived.bind(this, socket));
+  }
 
-SocketManager.prototype.connectSocket = function(socket, msg) {
+  connectSocket(socket, msg) {
     let connection = this.createSocket(msg);
     if (connection !== undefined) {
-        let uuid = msg.uuid;
-        let type = msg.type;
-        this.connections[uuid] = connection;
+      let uuid = msg.uuid;
+      let type = msg.type;
+      this.connections[uuid] = connection;
 
-        socket.on('disconnect', this.websocketDisconnected.bind(this, uuid));
-        connection.on('message', this.socketMessageReceived.bind(this, socket, type, uuid));
-        if (type === 'sub') {
-            socket.on('subscribe', this.websocketSubscribeReceived.bind(this, connection));
-            socket.on('unsubscribe', this.websocketUnsubscribeReceived.bind(this, connection));
-        }
-        else {
-            socket.on('message', this.websocketMessageReceived.bind(this, connection));
-        }
-        socket.emit('connected');
+      socket.on("disconnect", this.websocketDisconnected.bind(this, uuid));
+      connection.on("message", this.socketMessageReceived.bind(this, socket, type, uuid));
+      if (type === "sub") {
+        socket.on("subscribe", this.websocketSubscribeReceived.bind(this, connection));
+        socket.on("unsubscribe", this.websocketUnsubscribeReceived.bind(this, connection));
+      }
+      else {
+        socket.on("message", this.websocketMessageReceived.bind(this, connection));
+      }
+      socket.emit("connected");
     }
     else {
-        socket.emit('error', 'something went wrong');
+      socket.emit("error", "something went wrong");
     }
-};
+  }
 
-SocketManager.prototype.disconnectSocket = function(msg) {
+  disconnectSocket(msg) {
     if (msg.uuid !== undefined) {
-        this.closeSocket(msg.uuid);
+      this.closeSocket(msg.uuid);
     }
-};
+  }
 
-SocketManager.prototype.socketMessageReceived = function (socket, type, uuid) {
+  socketMessageReceived(socket, type, uuid) {
     let args = Array.apply(null, arguments);
     args.splice(0, 3);  // remove normal params
-    if (type === 'sub') {
-        args[0] = args[0].toString();
+    if (type === "sub") {
+      args[0] = args[0].toString();
     }
-    socket.emit('message', args);
-};
+    socket.emit("message", args);
+  }
 
-SocketManager.prototype.websocketMsgReceived = function(connection, msg) {
-    if (msg.type === 'connect socket') {
-        this.connectSocket(connection, msg.data);
+  websocketMsgReceived(connection, msg) {
+    if (msg.type === "connect socket") {
+      this.connectSocket(connection, msg.data);
     }
-};
+  }
 
-SocketManager.prototype.websocketMessageReceived = function(connection, msg) {
+  websocketMessageReceived(connection, msg) {
     connection.socket.send(msg);
-};
+  }
 
-SocketManager.prototype.websocketSubscribeReceived = function(connection, msg) {
+  websocketSubscribeReceived(connection, msg) {
     connection.socket.subscribe(msg);
-};
+  }
 
-SocketManager.prototype.websocketUnsubscribeReceived = function(connection, msg) {
+  websocketUnsubscribeReceived(connection, msg) {
     connection.socket.unsubscribe(msg);
-};
+  }
 
-SocketManager.prototype.websocketDisconnected = function(uuid) {
+  websocketDisconnected(uuid) {
     this.closeSocket(uuid);
-};
+  }
 
-SocketManager.prototype.createSocket = function(msg) {
+  createSocket(msg) {
     if ((msg.uri === undefined)
         || (msg.type === undefined)
         || (msg.uuid == undefined)) {
         return undefined;
     }
 
-    if ((msg.type !== 'sub') && (msg.type !== 'dealer')) {
-        return undefined;
+    if ((msg.type !== "sub") && (msg.type !== "dealer")) {
+      return undefined;
     }
 
     let broker = this.brokers[msg.type][msg.uri];
     if (broker === undefined) {
-        broker = new ZmqBroker(msg.uri, msg.type, this.ipcDir);
-        this.brokers[msg.type][msg.uri] = broker;
-        broker.on('closed', this.brokerClosed.bind(this));
+      broker = new ZmqBroker(msg.uri, msg.type, this.ipcDir);
+      this.brokers[msg.type][msg.uri] = broker;
+      broker.on("closed", this.brokerClosed.bind(this));
     }
     return broker.createConnection();  // TODO use connection
-};
+  }
 
-SocketManager.prototype.closeSocket = function(uuid) {
+  closeSocket(uuid) {
     let connection = this.connections[uuid];
     if (connection !== undefined) {
-        connection.close();
-        delete this.connections[uuid];
+      connection.close();
+      delete this.connections[uuid];
     }
-};
+  }
 
-SocketManager.prototype.brokerClosed = function(type, uri) {
+  brokerClosed(type, uri) {
     delete this.brokers[type][uri];
-};
+  }
+}
 
 module.exports = SocketManager;
