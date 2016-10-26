@@ -2,6 +2,7 @@ const zmq = require('zmq');
 const util = require('util');
 const uuid = require('uuid');
 const io = require('socket.io');
+const tmp = require('tmp');
 const EventEmitter = require('events').EventEmitter;
 const protobufMessage = require('machinetalk-protobuf').message;
 const Container = protobufMessage.Container;
@@ -39,10 +40,10 @@ ZmqConnection.prototype.close = function() {
     delete this;
 };
 
-function ZmqBroker(uri, type) {
-    let transport = (type === 'dealer' ? 'inproc://' : 'ipc://ipc/');
-    let frontendType = (type === 'sub' ? 'xsub' : type);
-    let backendType = (type === 'dealer' ? 'router' : 'xpub');
+function ZmqBroker(uri, type, ipcDir) {
+    let transport = (type === "dealer" ? "inproc://" : `ipc://${ipcDir}/`);
+    let frontendType = (type === "sub" ? "xsub" : type);
+    let backendType = (type === "dealer" ? "router" : "xpub");
     this.uri = uri;
     this.backendUri = transport + uuid.v4();
     this.type = type;
@@ -51,7 +52,7 @@ function ZmqBroker(uri, type) {
     this.connections = new Set();
 
     this.frontend.connect(this.uri);
-    if (backendType === 'xpub') {
+    if (backendType === "xpub") {
         this.backend.setsockopt(zmq.ZMQ_XPUB_VERBOSE, 1); // enables subscriptions for all subscribers
     }
     this.backend.bindSync(this.backendUri);
@@ -97,6 +98,7 @@ function SocketManager(server) {
     this.brokers = {sub: {}, dealer: {}}; // map of brokers
     this.io = io.listen(server);
     this.connections = {};
+    this.ipcDir = tmp.dirSync().name;
 
     this.io.on('connection', this._handleConnection.bind(this));
 }
@@ -179,7 +181,7 @@ SocketManager.prototype.createSocket = function(msg) {
 
     let broker = this.brokers[msg.type][msg.uri];
     if (broker === undefined) {
-        broker = new ZmqBroker(msg.uri, msg.type);
+        broker = new ZmqBroker(msg.uri, msg.type, this.ipcDir);
         this.brokers[msg.type][msg.uri] = broker;
         broker.on('closed', this.brokerClosed.bind(this));
     }
