@@ -5,8 +5,6 @@ import Machinekit.HalRemote 1.0
 
 ServiceWindow {
     id: root
-    //width: 500
-    //height: 500
     anchors.fill: parent
 
     Rectangle {
@@ -89,8 +87,8 @@ ServiceWindow {
                 //onValueChanged: button0.checked = value
             }
 
-            Binding { target: button0; prop: "checked"; value: button0Pin.value }
-            Binding { target: button0Pin; prop: "value"; value: button0.checked }
+            Binding { target: button0; property: "checked"; value: button0Pin.value }
+            Binding { target: button0Pin; property: "value"; value: button0.checked }
         }
 
         StyledButton {
@@ -105,8 +103,8 @@ ServiceWindow {
                 direction: HalPin.Out
             }
 
-            Binding { target: button1; prop: "checked"; value: button1Pin.value }
-            Binding { target: button1Pin; prop: "value"; value: button1.pressed }
+            Binding { target: button1; property: "checked"; value: button1Pin.value }
+            Binding { target: button1Pin; property: "value"; value: button1.pressed }
         }
 
         Led {
