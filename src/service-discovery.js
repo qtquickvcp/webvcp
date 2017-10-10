@@ -16,7 +16,7 @@ function dnsServiceResolved(err, interface, protocol, name, type, domain, host, 
 
   let service = {name, host, address, port};
   for (let item of txt) {
-    let textItem = Buffer(item.data).toString('utf8');
+    let textItem = Buffer(item).toString('utf8');
     let [key, value] = textItem.split('=');
     service[key] = value;
   }
